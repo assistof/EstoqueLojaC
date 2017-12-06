@@ -1,0 +1,659 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <conio.h>
+#include <Windows.h>
+#define LOJA "loja.bin"
+
+
+
+typedef struct Produto{
+	int codigo;
+	char nome[26];
+	double valor;
+	int qtdEstoque;
+	int status;
+	int indice;
+}tProduto;
+
+typedef struct noAvl{
+	int codigo;
+	int indice;
+	int fatbal;
+	struct noAvl *dir;
+	struct noAvl *esq;
+}noAVL;
+
+typedef struct tlista{
+	int indice;
+	struct tlista *prox;
+}tLista;
+
+
+noAVL  *     criarNo(tProduto produto);
+void         inserir(noAVL **raiz, tProduto produto, int *status);
+void      rotacaoDir(noAVL **a, int *status);
+void      rotacaoEsq(noAVL **a,int *status);
+int             more(noAVL *no);
+int        consultar(noAVL *no, int codigo);
+void  rotacaoEsqRem (struct noAvl **a);
+void  rotacaoDirRem (struct noAvl **a);
+struct noAvl * maior(struct noAvl **raiz);
+void      remover_no(struct noAvl **raiz);
+void         remover(struct noAvl **raiz, int cod);
+int           height(noAVL *no);
+void         emOrdem(noAVL *raiz, tLista **no);
+void    inserirLista(tLista **no, int ind);
+void         liberar(tLista **ptr);
+
+//Funções com Arquivo
+void        carregar(noAVL **no , int *status);
+void   cadastroProduto(noAVL **no, int *status);
+void          exibir(noAVL *no);
+void      removerArq(noAVL **no);
+void         limpeza();
+void      alterarArq(noAVL **no);
+void       listarArq();
+void listarCodigo(noAVL *no);
+
+int main (){
+	noAVL *no = NULL;
+	tProduto produto;
+	int status, opcao;
+	carregar(&no,&status);
+	do{
+		printf("1 - Inserir\n");
+		printf("2 - Consultar\n");
+		printf("3 - Listar Arquivo\n");
+		printf("4 - Listar Codigo\n");
+		printf("5 - Alterar Preco Unitario e Quantidade em Estoque\n");
+		printf("6 - Remover Produto\n");
+		printf("0 - Sair\n");
+		printf("Opcao: ");
+		scanf("%d",&opcao);
+		switch(opcao){
+		case 1:
+			cadastroProduto(&no, &status);
+			break;
+		case 2:
+			exibir(no);
+			break;
+		case 3:
+			listarArq();
+			break;
+		case 4:
+			listarCodigo(no);
+			break;
+		case 5:
+			alterarArq(&no);
+			break;
+		case 6:
+			removerArq(&no);
+			break;
+		default:
+			if(opcao != 0)
+			 printf("Valor Invalido!\n");
+		}
+	}while(opcao != 0);
+	limpeza();
+	return 0;
+}
+
+
+
+
+noAVL *      criarNo(tProduto produto) {
+	noAVL * raiz; 
+	raiz = (noAVL *) malloc(sizeof(noAVL));
+	raiz->indice = produto.indice;
+	raiz->codigo = produto.codigo;
+	raiz->esq = NULL;
+	raiz->dir = NULL;
+	raiz->fatbal = 0;
+	return raiz;
+}
+
+void         inserir(noAVL **raiz, tProduto produto, int *status) {
+	if (*raiz == NULL) {
+		*raiz = criarNo(produto);
+		*status = 1;
+	}
+	else if (produto.codigo == (*raiz)->codigo) {
+		printf ("Codigo repetido. \n");
+		return;
+	}
+	else if(produto.codigo < (*raiz)->codigo) {
+		inserir(&((*raiz)->esq),produto,status);
+		if (*status == 1)
+			switch ((*raiz)->fatbal) { 
+			case 1 : (*raiz)->fatbal = 0; *status = 0; break;
+			case 0 : (*raiz)->fatbal = -1; break;
+			case -1 : rotacaoDir(raiz,status); break;
+		}
+	}
+	else {
+		inserir(&((*raiz)->dir),produto,status);
+		if (*status == 1)
+			switch ((*raiz)->fatbal) { 
+			case -1 : (*raiz)->fatbal = 0; *status = 0; break;
+			case 0 : (*raiz)->fatbal = 1; break;
+			case 1 : rotacaoEsq(raiz,status); break; 
+		}
+	}
+}
+
+void      rotacaoDir(noAVL **a, int *status) {
+	noAVL * b, * c;
+	b = (*a)->esq;
+	if (b->fatbal == -1) { // rotação simples
+		(*a)->esq = b->dir;
+		b->dir = *a;
+		(*a)->fatbal = 0;
+		*a = b;
+	}
+	else { // rotação dupla
+		c = b->dir;
+		b->dir = c->esq;
+		c->esq = b;
+		(*a)->esq = c->dir;
+		c->dir = *a; 
+		if (c->fatbal == 1)
+			(*a)->fatbal = 1;
+		else 
+			(*a)->fatbal = 0;
+		if (c->fatbal == -1)
+			b->fatbal = -1;
+		else
+			b->fatbal = 0;
+		*a = c;
+	}
+	(*a)->fatbal = 0;
+	*status = 0;
+}
+
+void      rotacaoEsq(noAVL **a,int *status) {
+	noAVL * b, * c;
+	b = (*a)->dir;
+	if (b->fatbal == 1) { // rotação simples
+		(*a)->dir = b->esq;
+		b->esq = *a;
+		(*a)->fatbal = 0;
+		*a = b;
+	}
+	else { // rotação dupla
+		c = b->esq;
+		b->esq = c->dir;
+		c->dir = b;
+		(*a)->dir = c->esq;
+		c->esq = *a;
+		if (c->fatbal == 1)
+			(*a)->fatbal = -1;
+		else
+			(*a)->fatbal = 0;
+		if (c->fatbal == -1)
+			b->fatbal = 1;
+		else
+			b->fatbal = 0;
+		*a = c;
+	}
+	(*a)->fatbal = 0;
+	*status = 0;
+}
+
+int             more(noAVL *no){
+	if(no == NULL)
+		return -1;
+	else{
+		while(no->dir != NULL)
+			no = no ->dir;
+		return no->indice;
+	}
+}
+
+int        consultar(noAVL *no, int codigo){
+	if(no == NULL)
+		return -1;
+	else{
+		if(codigo == no->codigo)
+			return no->indice;
+		else if(no->codigo > codigo)
+			return consultar(no->esq,codigo);
+		else
+			return consultar(no->dir,codigo);
+	}
+}
+
+void   rotacaoEsqRem(struct noAvl **a) {
+      struct noAvl *b, *c;
+      if (height((*a)->esq) > height ((*a)->dir))
+             b = (*a)->esq;
+       else
+             b = (*a)->dir;
+       if (b->fatbal == 1 || b->fatbal == 0) { 
+                // rotação simples
+                //printf ("simples \n");
+		   (*a)->dir = b->esq;
+                b->esq = *a;
+                (*a)->fatbal = 0;
+               *a = b;
+        }
+        else { // rotação dupla
+              //printf ("dupla \n");
+	        if (height (b->esq) > height (b->dir)) 
+                  c = b->esq;
+	        else 
+                  c = b->dir;
+			  b->esq = c->dir;
+              c->dir = b;
+              (*a)->dir = c->esq;
+              c->esq = *a;
+              if (c->fatbal == 1)
+                   (*a)->fatbal = -1;
+              else
+                   (*a)->fatbal = 0;
+              if (c->fatbal == -1)
+                   b->fatbal = 1;
+              else
+                   b->fatbal = 0;
+              *a = c;
+         }
+         (*a)->fatbal = 0;
+}
+
+void   rotacaoDirRem(struct noAvl **a) {
+       struct noAvl * b, * c;
+       if (height ((*a)->esq) > height ((*a)->dir))
+             b = (*a)->esq;
+       else
+             b = (*a)->dir;
+       if (b->fatbal == -1|| b->fatbal == 0) { 
+               // rotação simples
+		       //printf ("simples \n");
+               (*a)->esq = b->dir;
+               b->dir = *a;
+               (*a)->fatbal = 0;
+               *a = b;
+        }
+        else { // rotação dupla
+			 // printf ("dupla \n");
+              if (height (b->esq) > height (b->dir))
+				  c = b->esq;
+              else
+				  c = b->dir;
+              b->dir = c->esq;
+              c->esq = b;
+              (*a)->esq = c->dir;
+              c->dir = *a; 
+              if (c->fatbal == -1)
+				  (*a)->fatbal = 1;
+             else 
+				  (*a)->fatbal = 0;
+             if (c->fatbal == 1)
+				  b->fatbal = -1;
+             else
+				  b->fatbal = 0;
+             *a = c;
+      }
+      (*a)->fatbal = 0;
+}
+
+struct noAvl * maior(struct noAvl **raiz) {
+    struct noAvl *aux;
+    
+    if ((*raiz)->dir == NULL) {
+         aux = *raiz;
+         *raiz = (*raiz)->esq;
+    }
+    else {		  
+          aux = maior(&((*raiz)->dir));
+          switch ((*raiz)->fatbal) { 
+                   case 1 : (*raiz)->fatbal = 0; break;
+                   case 0 : (*raiz)->fatbal = -1; break;
+                   case -1 : //printf("Rotacao a direita ");
+				   rotacaoDirRem(raiz); break;
+          }
+	}
+	return aux;
+}
+
+void      remover_no(struct noAvl **raiz) {
+    struct noAvl * pos;
+    pos = *raiz;
+    if ((*raiz)->esq == NULL && (*raiz)->dir == NULL) // Não tem filhos
+        *raiz = NULL;
+    else if ((*raiz)->esq == NULL) // Não tem filho a esquerda
+        *raiz = (*raiz)->dir;
+    else if ((*raiz)->dir == NULL) // Não tem filho a direita
+        *raiz = (*raiz)->esq;
+    else // Tem ambos os filhos
+    {
+         pos = maior(&((*raiz)->esq));
+		 (*raiz)->codigo = pos->codigo;
+    }
+    free (pos);
+}
+
+void         remover(struct noAvl **raiz, int cod) {
+       if (*raiz == NULL)
+              printf("Codigo não encontrado.\n");
+	   else if (cod == (*raiz)->codigo) {
+              remover_no(&(*raiz));
+      }
+      else if (cod < (*raiz)->codigo) {
+             remover(&((*raiz)->esq),cod);
+             switch ((*raiz)->fatbal) { 
+                   case -1 : (*raiz)->fatbal = 0; break;
+                   case 0 : (*raiz)->fatbal = 1; break;
+                   case 1 :  //printf("Rotacao a esquerda ");
+				   rotacaoEsqRem(raiz); break; 
+             }
+      }
+      else {
+               remover(&((*raiz)->dir),cod);
+               switch ((*raiz)->fatbal) { 
+                   case 1 : (*raiz)->fatbal = 0; break;
+                   case 0 : (*raiz)->fatbal = -1; break;
+                   case -1 : //printf("Rotacao a direita ");
+				   rotacaoDirRem(raiz); break;
+               }
+      }
+}
+
+int           height(noAVL *no){
+	int u,v;
+	if(no == NULL)
+		return -1;
+	u = height(no->esq);
+	v = height(no->dir);
+	if(u>v)
+		return u+1;
+	else
+		return v+1;
+}
+
+void         emOrdem(noAVL *raiz, tLista **no){
+     if (raiz != NULL)	 {
+     	emOrdem(raiz->esq, &(*no)); 
+		inserirLista(&(*no), raiz->indice);
+     	emOrdem(raiz->dir, &(*no));
+		
+     }
+}
+
+void    inserirLista(tLista **no, int ind){
+	tLista *aux, *aux2;
+	aux = (tLista *) malloc(sizeof(tLista));
+	aux->indice = ind;
+	aux->prox = NULL;
+	aux2 = *no;
+	if(*no == NULL)
+		*no = aux;
+	else{
+		
+		while(aux2->prox != NULL)
+			aux2 = aux2->prox;
+		aux2->prox = aux;
+	}
+
+}
+
+void         liberar(tLista **ptr){
+	tLista *aux;
+
+	while ((*ptr)->prox != NULL){
+		aux = (*ptr)->prox;
+		free(*ptr);
+		*ptr = aux;
+	}
+	free(*ptr);
+	*ptr = NULL;
+}
+
+//Funções com arquivos
+
+void        carregar(noAVL **no , int *status){
+	FILE *arq;
+	tProduto produto;
+	int i=0;
+	if(!(arq = fopen(LOJA, "a+b"))){
+		printf("Erro ao abrir o arquivo!\n\n");
+		return;
+	}else{
+		rewind(arq);
+		fread(&produto, sizeof(tProduto), 1, arq);
+		while(!feof(arq)){
+			if(produto.status == 1){
+				produto.indice = i;
+				inserir(&(*no), produto, status);
+			}
+			fread(&produto, sizeof(tProduto), 1, arq);
+			i++;
+		}
+		fclose(arq);
+	}
+}
+
+void   cadastroProduto(noAVL **no, int *status){
+	tProduto produto;
+	FILE *arq;
+	int cod;
+	printf("Informe a Codigo: ");
+	scanf("%d", &cod);
+	if(consultar(*no , cod) != -1){
+		printf("Codigo ja existe!!\n");
+		getch();
+		return;
+	}
+	if(!(arq = fopen(LOJA , "a+b"))){
+		printf("Erro ao abrir o arquivo!\n\n");
+		return;
+	}else{
+		produto.codigo = cod;
+		produto.status = 1;
+
+		printf("Nome do produto: ");
+		fflush(stdin); gets(produto.nome);
+
+		printf("Informe o Preco Unitario do Produto: ");
+		fflush(stdin); scanf("%f",&produto.valor);
+
+		printf("Informe a Quatidade em estoque do Produto: ");
+		fflush(stdin); scanf("%d",&produto.qtdEstoque);
+
+
+		produto.indice = 1+more(*no);
+		inserir(&(*no), produto, status);
+		if (fwrite(&produto, sizeof(tProduto), 1, arq) == 1) {
+			printf("Produto cadastrado com sucesso!\n\n");
+			fclose(arq);
+		} else {
+			printf("Erro ao salvar o Produto no arquivo!\n\n");
+			fclose(arq);
+		}
+	}
+}
+
+void          exibir(noAVL *no){
+	tProduto produto;
+	FILE *arq;
+	int cod, i=0;
+	
+		printf("Informe a Codigo: ");
+		scanf("%d", &cod);
+		
+	    i = consultar(no, cod);
+	if(i != -1){
+		if(!(arq = fopen(LOJA, "rb"))){
+			printf("Erro ao abrir o arquivo!\n\n");
+			return;
+		}else{
+			fseek(arq, sizeof(tProduto)*i, 0);
+			fread(&produto, sizeof(tProduto), 1, arq);
+			printf("Produto: %s\n", produto.nome);
+			printf("Codigo: %d\n", produto.codigo);
+			printf("Preco Unitario: %.2f\n", produto.valor);
+			printf("Quantidades em Estoque: %d\n\n", produto.qtdEstoque);
+			fclose(arq);
+		}
+	}else
+		printf("Não encontrado!!\n\n");
+	
+}
+
+void      removerArq(noAVL **no){
+	tProduto produto;
+	FILE *arq;
+	int cod, i=0, c=0;
+
+	printf("Informe a Codigo: ");
+	scanf("%d", &cod);
+
+	i = consultar(*no, cod);
+	if(!(arq = fopen(LOJA, "r+b"))){
+		printf("Erro ao abrir o arquivo!\n\n");
+		return;
+	}
+	if(i != -1)
+	{
+		fseek(arq, sizeof(tProduto)*i, 0);
+		fread(&produto, sizeof(tProduto), 1, arq);
+		printf("Produto: %s\n", produto.nome);
+		printf("Codigo: %d\n", produto.codigo);
+		printf("Preco Unitario: %.2f\n", produto.valor);
+		printf("Quantidades em Estoque: %d\n\n", produto.qtdEstoque);
+		produto.status = 0;
+		fseek(arq, -sizeof(tProduto), SEEK_CUR);
+		if(fwrite(&produto, sizeof(tProduto), 1, arq) == 1){
+			printf("Alteracao salva com sucesso!\n\n");
+			remover(&(*no), cod);
+		}else
+			printf("Erro na gravacao do arquivo!\n\n");
+
+	}else
+		printf("Nao encontrado!!\n\n");
+	fclose(arq);
+}
+
+void		 limpeza(){
+	tProduto produto;
+	FILE *arqOrigem, *arqDestino;
+	int i=0, e=0;
+
+	if (!(arqOrigem = fopen(LOJA, "rb"))) {
+		printf("Erro ao abrir o arquivo!\n\n");
+		return;
+	}
+	if (!(arqDestino = fopen("temp.bin", "wb"))) {
+		printf("Erro ao abrir o arquivo temporario!\n\n");
+		fclose(arqOrigem);
+		return;
+	}
+	fread(&produto, sizeof(tProduto), 1, arqOrigem);
+	while(!feof(arqOrigem)) {
+		if (produto.status == 0) {
+			e++;
+		}else{
+			produto.indice = i;
+			fwrite(&produto, sizeof(tProduto), 1, arqDestino);
+			i++;
+		}
+		fread(&produto, sizeof(tProduto), 1, arqOrigem);
+		
+	}
+	fclose(arqOrigem);
+	fclose(arqDestino);
+	if (e > 0) {
+		remove(LOJA);
+		rename("temp.bin", LOJA);
+		printf("Limpeza realizada com sucesso! %d\n\n", e);
+	}
+}
+
+void	  alterarArq(noAVL **no){
+	tProduto produto;
+	FILE *arq;
+	int cod, i=0, c=0;
+	
+		printf("Informe a Codigo: ");
+		scanf("%d", &cod);
+		
+	    i = consultar(*no, cod);
+	if(i != -1){
+		if(!(arq = fopen(LOJA, "r+b"))){
+			printf("Erro ao abrir o arquivo!\n\n");
+			return;
+		}else{
+			fseek(arq, sizeof(tProduto)*i, 0);
+			fread(&produto, sizeof(tProduto), 1, arq);
+			printf("Produto: %s\n", produto.nome);
+			printf("Codigo: %d\n", produto.codigo);
+			
+			printf("Informe a Preco Unitario: ");
+			scanf("%lf", &produto.valor);
+			printf("Informe QTD de Quantidades em Estoque: ");
+			scanf("%d", &produto.qtdEstoque);
+			printf("\nProduto: %s\n", produto.nome);
+			printf("Codigo: %d\n", produto.codigo);
+			printf("Preco Unitario: %.2f\n", produto.valor);
+			printf("Quantidades em Estoque: %d\n\n", produto.qtdEstoque);
+			fseek(arq, -sizeof(tProduto), SEEK_CUR);
+			if(fwrite(&produto, sizeof(tProduto), 1, arq) == 1){
+				printf("Alteracao salva com sucesso!\n\n");
+			}else
+				printf("Erro na gravacao do arquivo!\n\n");
+		}
+	}else
+		printf("Não encontrado!!\n\n");
+	fclose(arq);
+}
+
+void	   listarArq(){
+	FILE *arq;
+	tProduto produto;
+	if(!(arq = fopen(LOJA, "rb"))){
+		printf("Erro ao abrir o arquivo!\n\n");
+		return;
+	}else{
+		
+		fread(&produto, sizeof(tProduto), 1, arq);
+		while(!feof(arq)){
+			if(produto.status == 1){
+				printf("Produto: %s\n", produto.nome);
+				printf("Codigo: %d\n", produto.codigo);
+				printf("Preco Unitario: %.2f\n", produto.valor);
+				printf("Quantidades em Estoque: %d\n\n", produto.qtdEstoque);
+			}
+			fread(&produto, sizeof(tProduto), 1, arq);			
+		}
+		fclose(arq);
+	}
+}
+
+void listarCodigo(noAVL *no){
+	tProduto produto;
+	FILE *arq;
+	tLista *lNo = NULL, *aux;
+	int cod, i=0;
+
+	emOrdem(no, &lNo);
+	aux = lNo;
+	if(!(arq = fopen(LOJA, "rb"))){
+			printf("Erro ao abrir o arquivo!\n\n");
+			return;
+	}
+	while(aux != NULL){
+		i = aux->indice;
+		if(i != -1){
+			rewind(arq);
+			fseek(arq, sizeof(tProduto)*i, 0);
+			fread(&produto, sizeof(tProduto), 1, arq);
+			printf("Produto: %s\n", produto.nome);
+			printf("Codigo: %d\n", produto.codigo);
+			printf("Preco Unitario: %.2f\n", produto.valor);
+			printf("Quantidades em Estoque: %d\n\n", produto.qtdEstoque);
+		}
+		aux = aux->prox;
+	}
+	fclose(arq);
+	liberar(&lNo);
+}
