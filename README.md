@@ -1,2 +1,2 @@
 # EstoqueLojaC
-Sistema de cadastro de estoque em C.
+Sistema de cadastro de estoque em C usando com AVL.
